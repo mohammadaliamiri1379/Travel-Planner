@@ -1,0 +1,6 @@
+groq
+python-dotenv
+streamlit
+pydantic
+fastapi
+PyYAML

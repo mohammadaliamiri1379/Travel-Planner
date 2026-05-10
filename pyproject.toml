@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "travel_planner"
-version = "- Two domain agents (Places + Weather)"
+version = "0.0.1"
 description = "University-grade reference implementation of a multi-agent travel planning system with:"
 readme = "README.md"
 authors = [

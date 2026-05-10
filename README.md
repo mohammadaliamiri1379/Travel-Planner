@@ -2,9 +2,17 @@
 
 ![PyPI version](https://img.shields.io/pypi/v/travel_planner.svg)
 
-University-grade reference implementation of a multi-agent travel planning system with:
+ implementation of a multi-agent travel planning system with:
 
-* [GitHub](https://github.com/Mohammadali Amiri/travel_planner/) | [PyPI](https://pypi.org/project/travel_planner/) | [Documentation](https://Mohammadali Amiri.github.io/travel_planner/)
+- Orchestrator agent (planning + aggregation)
+- Two domain agents (Places + Weather)
+- MCP-style tool abstraction servers (FastAPI + Pydantic)
+- Microsoft-style agent registry/routing layer
+- AWS integration wrapper (boto3)
+- API gateway exposing `POST /chat`
+
+
+* [GitHub](https://github.com/mohammadaliamiri1379/Travel-Planner) | | [Documentation](https://github.com/mohammadaliamiri1379/Travel-Planner)
 * Created by [Mohammadali Amiri](- Orchestrator agent (planning + aggregation)) | GitHub [@mohammadaliamiri1379](https://github.com/mohammadaliamiri1379) | PyPI [@mohammadaliamiri1379](https://pypi.org/user/mohammadaliamiri1379/)
 * MIT License
 
@@ -16,7 +24,7 @@ University-grade reference implementation of a multi-agent travel planning syste
 
 Documentation is built with [Zensical](https://zensical.org/) and deployed to GitHub Pages.
 
-* **Live site:** https://Mohammadali Amiri.github.io/travel_planner/
+* **Live site:** https://github.com/mohammadaliamiri1379/Travel-Planner
 * **Preview locally:** `just docs-serve` (serves at http://localhost:8000)
 * **Build:** `just docs-build`
 

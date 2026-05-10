@@ -1,0 +1,3 @@
+from travel_planner.models.MissingInformation import MissingInformationResult
+
+print (MissingInformationResult.PROMPT)
