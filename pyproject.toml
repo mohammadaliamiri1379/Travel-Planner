@@ -53,7 +53,7 @@ documentation = "https://Mohammadali Amiri.github.io/travel_planner/"
 homepage = "https://github.com/Mohammadali Amiri/travel_planner"
 
 [project.scripts]
-travle_planner = "travle_planner.cli:app"
+travel_planner = "travel_planner.cli:app"
 
 [tool.ty]
 # All rules are enabled as "error" by default; no need to specify unless overriding.

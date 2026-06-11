@@ -57,7 +57,7 @@ trip_details_agent:
       "interests": ["string"],
     }
 
-    Exteracted data:
+    Extracted data:
     {{$extracted_data}}
 missing_information_agent:
   role: user

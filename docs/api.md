@@ -1,3 +1,3 @@
 # API Reference
 
-::: travle_planner
+::: travel_planner

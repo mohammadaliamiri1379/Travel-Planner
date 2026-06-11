@@ -10,7 +10,7 @@ uv add travel_planner
 
 ### What's in the scaffold
 
-- `src/travle_planner/` package with CLI (Typer + Rich), py.typed marker
+- `src/travel_planner/` package with CLI (Typer + Rich), py.typed marker
 - Tests with pytest, coverage across Python 3.12/3.13/3.14
 - CI via GitHub Actions: lint (Ruff), type check (ty), test matrix, coverage reporting
 - Security scanning: CodeQL analysis, Dependabot, zizmor workflow audit
