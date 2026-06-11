@@ -66,5 +66,6 @@ class Agent:
         """
         return self._LLM(prompt, self.content)
 
-relevance_agent = Agent(content="relevance_agent")
-relevance_agent.run("Is it a good idea to visit Paris in winter?")
+if __name__ == "__main__":
+    relevance_agent = Agent(content="relevance_agent")
+    print(relevance_agent.run("Is it a good idea to visit Paris in winter?"))

@@ -1,5 +1,5 @@
 import json
-from pydantic import BaseModel, Field
+from typing import Any
 
 
 def _load_json(raw_output: str) -> Any:

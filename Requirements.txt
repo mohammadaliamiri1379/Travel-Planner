@@ -4,3 +4,4 @@ streamlit
 pydantic
 fastapi
 PyYAML
+semantic_kernel

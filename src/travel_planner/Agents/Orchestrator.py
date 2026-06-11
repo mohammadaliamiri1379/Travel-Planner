@@ -7,6 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import Any, Literal
 
+import httpx
 import yaml
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -23,6 +24,7 @@ from travel_planner.models.relevance import RelevanceResult
 from travel_planner.models.TripDetails import TripDetailsResult
 from travel_planner.models.FollowUpQuestions import FollowUpQuestionsResult
 from travel_planner.models.Pipeline import PipelineResult
+from travel_planner.registry.agent_registry import get_agent_url
 from travel_planner.Utils.utils_orchestrator import _load_json, _result_to_text
 
 BASE_DIR = Path(__file__).resolve().parents[3]
@@ -119,6 +121,7 @@ class TravelAgentOrchestrator:
                 agent_name="trip_details_agent",
             )
             print(trip_details)
+            itinerary = await self._get_places_recommendations(trip_details)
             return PipelineResult(
                 stage="ready",
                 user_input=user_input,
@@ -126,9 +129,29 @@ class TravelAgentOrchestrator:
                 has_required_information=True,
                 missing_information=[],
                 trip_data=trip_details.model_dump(),
+                itinerary=itinerary,
             ).model_dump()
         
   
+    async def _get_places_recommendations(self, trip_details: TripDetailsResult) -> list[dict]:
+        places_url = get_agent_url("places")
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{places_url}/recommend",
+                    json={
+                        "where": trip_details.where,
+                        "interests": trip_details.interests,
+                        "duration": trip_details.duration,
+                    },
+                    timeout=15.0,
+                )
+            response.raise_for_status()
+            return response.json().get("itinerary", [])
+        except Exception as e:
+            print(f"orchestrator: places agent call failed: {e}")
+            return []
+
     async def _invoke_agent(
               self,
               prompt: str,
@@ -177,15 +200,8 @@ class TravelAgentOrchestrator:
                 return model.model_validate(repaired_parsed)
 
               
-TravelAgent = TravelAgentOrchestrator()
-# from Agent import Agent
-asyncio.run(
-    TravelAgent.run("I want to visit Paris in 5th May for 5 days, and I love art and food. Can you help me plan a trip?")
-)
-# agent = Agent("Orchestrator")
-
-# result = agent.run(
-#         "I want to visit Paris in the spring for 5 days, and I love art and food. Can you help me plan a trip?"
-#     )
-# print(result)
-# print(type(result))
+if __name__ == "__main__":
+    TravelAgent = TravelAgentOrchestrator()
+    asyncio.run(
+        TravelAgent.run("I want to visit Paris in 5th May for 5 days, and I love art and food. Can you help me plan a trip?")
+    )
