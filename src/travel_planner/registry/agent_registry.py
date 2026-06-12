@@ -2,6 +2,7 @@ import os
 
 AGENT_REGISTRY: dict[str, str] = {
 	"places": os.getenv("PLACES_AGENT_URL", "http://127.0.0.1:8001"),
+	"weather": os.getenv("WEATHER_AGENT_URL", "http://127.0.0.1:8002"),
 }
 
 

@@ -10,6 +10,7 @@ class PlaceResult(BaseModel):
 	lon: float | None = None
 	day: int = 1
 	date: str = ""
+	date_iso: str = ""
 	time: str = ""
 
 

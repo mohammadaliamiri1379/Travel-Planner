@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import streamlit as st
 import httpx
 import pandas as pd
@@ -40,6 +42,20 @@ def _scroll_to_anchor_js(anchor_id: str) -> str:
 """
 
 DEFAULT_GATEWAY_BASE_URL = "http://127.0.0.1:8000"
+
+
+def _format_trip_dates(start_iso: str, end_iso: str) -> str:
+    """Format a trip's start/end dates (ISO strings) as e.g. "June 15-17, 2026"."""
+    start = datetime.fromisoformat(start_iso).date()
+    end = datetime.fromisoformat(end_iso).date()
+
+    if start == end:
+        return start.strftime("%B %d, %Y")
+    if (start.year, start.month) == (end.year, end.month):
+        return f"{start.strftime('%B %d')}-{end.day}, {end.year}"
+    if start.year == end.year:
+        return f"{start.strftime('%B %d')} - {end.strftime('%B %d, %Y')}"
+    return f"{start.strftime('%B %d, %Y')} - {end.strftime('%B %d, %Y')}"
 
 DATE_SUGGESTIONS = ["Next week", "Next month", "In 2 months", "This summer"]
 DURATION_SUGGESTIONS = ["2 days", "3 days", "5 days", "7 days"]
@@ -125,6 +141,9 @@ if "_last_rendered_step" not in st.session_state:
 if "destination_city" not in st.session_state:
     st.session_state.destination_city = ""
 
+if "weather" not in st.session_state:
+    st.session_state.weather = []
+
 # ----------------------------
 # HEADER
 # ----------------------------
@@ -163,6 +182,7 @@ if st.session_state.step == "input":
                 plan = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
             st.session_state.results = plan["itinerary"]
             st.session_state.destination_city = plan["where"]
+            st.session_state.weather = plan["weather"]
             st.session_state.step = "results"
 
 # ----------------------------
@@ -229,6 +249,7 @@ if st.session_state.step == "questions":
             )
         st.session_state.results = plan["itinerary"]
         st.session_state.destination_city = plan["where"]
+        st.session_state.weather = plan["weather"]
         st.session_state.step = "results"
 
 # ----------------------------
@@ -325,10 +346,32 @@ if st.session_state.step == "results":
             },
         ))
 
+    weather_by_day = {w["day"]: w for w in st.session_state.weather}
+
+    first_iso = ordered_places[0].get("date_iso") if ordered_places else ""
+    last_iso = ordered_places[-1].get("date_iso") if ordered_places else ""
+    if st.session_state.destination_city:
+        title = f"### 🌍 {st.session_state.destination_city} Trip"
+        if first_iso and last_iso:
+            title += f", {_format_trip_dates(first_iso, last_iso)}"
+        st.markdown(title)
+
     for day in sorted(days):
         day_places = days[day]
-        date_label = day_places[0].get("date")
-        header = f"#### 📅 Day {day}" + (f" — {date_label}" if date_label else "")
+        date_iso = day_places[0].get("date_iso")
+        date_label = datetime.fromisoformat(date_iso).strftime("%A, %B %d") if date_iso else day_places[0].get("date")
+        header = f"#### 📅 Day {day}" + (f" - {date_label}" if date_label else "")
+
+        day_weather = weather_by_day.get(day)
+        if day_weather:
+            condition = day_weather.get("condition", "")
+            high = day_weather.get("temp_high_c")
+            low = day_weather.get("temp_low_c")
+            precip = day_weather.get("precipitation_chance")
+            temp_str = f" {high:.0f}°/{low:.0f}°C" if high is not None and low is not None else ""
+            precip_str = f" · 💧{precip}%" if precip is not None else ""
+            header += f"&nbsp;&nbsp;{condition}{temp_str}{precip_str}"
+
         st.markdown(header)
 
         for place in day_places:

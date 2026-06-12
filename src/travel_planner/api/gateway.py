@@ -37,4 +37,5 @@ async def generate_itinerary(request: GenerateItineraryRequest) -> dict:
 	return {
 		"itinerary": result.get("itinerary", []),
 		"where": result.get("trip_data", {}).get("where", ""),
+		"weather": result.get("weather", []),
 	}

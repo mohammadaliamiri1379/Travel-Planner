@@ -36,4 +36,8 @@ def generate_final_plan(base_url: str, prompt: str, answers: dict) -> dict:
     response = httpx.post(f"{base_url}/generate-itinerary", json={"prompt": prompt, "answers": answers}, timeout=60.0)
     response.raise_for_status()
     payload = response.json()
-    return {"itinerary": payload.get("itinerary", []), "where": payload.get("where", "")}
+    return {
+        "itinerary": payload.get("itinerary", []),
+        "where": payload.get("where", ""),
+        "weather": payload.get("weather", []),
+    }

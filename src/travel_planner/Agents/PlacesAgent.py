@@ -22,8 +22,10 @@ from travel_planner.models.Place import PlaceResult, PlacesRequest, PlacesRespon
 
 app = FastAPI(title="places-agent")
 
-TIME_SLOTS = ["09:00 AM", "12:30 PM", "03:00 PM", "06:30 PM"]
+TIME_SLOTS = ["09:00 AM", "12:30 PM", "03:00 PM", "06:30 PM", "09:00 PM"]
 MEAL_SLOT_INDEXES = {1, 3}
+NIGHTLIFE_SLOT_INDEX = 4
+NIGHTLIFE_PREFIXES = ("catering.bar", "adult.nightclub")
 MAX_SCHEDULED_DAYS = 14
 
 BASE_DIR = Path(__file__).resolve().parents[3]
@@ -60,9 +62,22 @@ def _parse_start_date(when: str) -> date | None:
 	if not when:
 		return None
 	try:
-		return date_parser.parse(when, fuzzy=True, default=datetime.now()).date()
+		parsed = date_parser.parse(when, fuzzy=True, default=datetime.now()).date()
 	except (ValueError, OverflowError):
 		return None
+
+	# dateutil's fuzzy parser sometimes reads a day-of-month (e.g. the "16" in
+	# "June 15-16") as a 2-digit year, landing the date in the past. Snap it
+	# forward to this year (or next) - trip dates are never meant to be in the past.
+	today = date.today()
+	if parsed < today:
+		try:
+			parsed = parsed.replace(year=today.year)
+		except ValueError:
+			parsed = parsed.replace(year=today.year, day=28)
+		if parsed < today:
+			parsed = parsed.replace(year=today.year + 1)
+	return parsed
 
 
 def _feature_to_place(feature: dict) -> PlaceResult:
@@ -86,29 +101,39 @@ def _schedule_itinerary(places: list[PlaceResult], num_days: int, start_date: da
 	"""Spread places across the trip's days and assign approximate dates/times.
 
 	Meal-time slots are filled from food/drink places first so cafes and
-	restaurants land at lunch/dinner rather than alongside sightseeing.
+	restaurants land at lunch/dinner rather than alongside sightseeing. Bars
+	and nightclubs are held back for the evening slot so nobody gets sent to
+	a club at 9am.
 	"""
-	food = [p for p in places if p.category.startswith("catering.")]
-	other = [p for p in places if not p.category.startswith("catering.")]
+	nightlife = [p for p in places if p.category.startswith(NIGHTLIFE_PREFIXES)]
+	food = [p for p in places if p.category.startswith("catering.") and not p.category.startswith(NIGHTLIFE_PREFIXES)]
+	other = [p for p in places if not p.category.startswith("catering.") and not p.category.startswith(NIGHTLIFE_PREFIXES)]
 
 	scheduled: list[PlaceResult] = []
 	food_iter = iter(food)
 	other_iter = iter(other)
+	nightlife_iter = iter(nightlife)
 
 	for day_offset in range(num_days):
 		day_number = day_offset + 1
-		date_label = (start_date + timedelta(days=day_offset)).strftime("%a, %b %d") if start_date else ""
+		day_date = start_date + timedelta(days=day_offset) if start_date else None
+		date_label = day_date.strftime("%a, %b %d") if day_date else ""
+		date_iso = day_date.isoformat() if day_date else ""
 
 		exhausted = True
 		for slot_index, time_label in enumerate(TIME_SLOTS):
-			is_meal_slot = slot_index in MEAL_SLOT_INDEXES
-			primary, fallback = (food_iter, other_iter) if is_meal_slot else (other_iter, food_iter)
-			place = next(primary, None) or next(fallback, None)
+			if slot_index == NIGHTLIFE_SLOT_INDEX:
+				place = next(nightlife_iter, None)
+			elif slot_index in MEAL_SLOT_INDEXES:
+				place = next(food_iter, None) or next(other_iter, None)
+			else:
+				place = next(other_iter, None) or next(food_iter, None)
 			if place is None:
 				continue
 			exhausted = False
 			place.day = day_number
 			place.date = date_label
+			place.date_iso = date_iso
 			place.time = time_label
 			scheduled.append(place)
 

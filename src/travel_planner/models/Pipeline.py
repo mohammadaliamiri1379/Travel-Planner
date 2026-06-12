@@ -11,4 +11,5 @@ class PipelineResult(BaseModel):
 	questions: list[str] = Field(default_factory=list)
 	trip_data: dict[str, Any] = Field(default_factory=dict)
 	itinerary: list[dict[str, Any]] = Field(default_factory=list)
+	weather: list[dict[str, Any]] = Field(default_factory=list)
 	next_step_hint: str = ""

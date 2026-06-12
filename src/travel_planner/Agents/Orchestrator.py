@@ -121,7 +121,10 @@ class TravelAgentOrchestrator:
                 agent_name="trip_details_agent",
             )
             print(trip_details)
-            itinerary = await self._get_places_recommendations(trip_details)
+            itinerary, weather = await asyncio.gather(
+                self._get_places_recommendations(trip_details),
+                self._get_weather_forecast(trip_details),
+            )
             return PipelineResult(
                 stage="ready",
                 user_input=user_input,
@@ -130,6 +133,7 @@ class TravelAgentOrchestrator:
                 missing_information=[],
                 trip_data=trip_details.model_dump(),
                 itinerary=itinerary,
+                weather=weather,
             ).model_dump()
         
   
@@ -151,7 +155,10 @@ class TravelAgentOrchestrator:
             agent_name="trip_details_agent",
         )
         print(trip_details)
-        itinerary = await self._get_places_recommendations(trip_details)
+        itinerary, weather = await asyncio.gather(
+            self._get_places_recommendations(trip_details),
+            self._get_weather_forecast(trip_details),
+        )
         return PipelineResult(
             stage="ready",
             user_input=user_input,
@@ -160,6 +167,7 @@ class TravelAgentOrchestrator:
             missing_information=[],
             trip_data=trip_details.model_dump(),
             itinerary=itinerary,
+            weather=weather,
         ).model_dump()
 
     async def _get_places_recommendations(self, trip_details: TripDetailsResult) -> list[dict]:
@@ -180,6 +188,25 @@ class TravelAgentOrchestrator:
             return response.json().get("itinerary", [])
         except Exception as e:
             print(f"orchestrator: places agent call failed: {e}")
+            return []
+
+    async def _get_weather_forecast(self, trip_details: TripDetailsResult) -> list[dict]:
+        weather_url = get_agent_url("weather")
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{weather_url}/forecast",
+                    json={
+                        "where": trip_details.where,
+                        "when": trip_details.when,
+                        "duration": trip_details.duration,
+                    },
+                    timeout=15.0,
+                )
+            response.raise_for_status()
+            return response.json().get("forecast", [])
+        except Exception as e:
+            print(f"orchestrator: weather agent call failed: {e}")
             return []
 
     async def _invoke_agent(
