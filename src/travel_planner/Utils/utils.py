@@ -32,7 +32,8 @@ def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: fl
 
 
 
-def generate_final_plan(base_url: str, prompt: str, answers: dict) -> list[dict]:
+def generate_final_plan(base_url: str, prompt: str, answers: dict) -> dict:
     response = httpx.post(f"{base_url}/generate-itinerary", json={"prompt": prompt, "answers": answers}, timeout=60.0)
     response.raise_for_status()
-    return response.json().get("itinerary", [])
+    payload = response.json()
+    return {"itinerary": payload.get("itinerary", []), "where": payload.get("where", "")}

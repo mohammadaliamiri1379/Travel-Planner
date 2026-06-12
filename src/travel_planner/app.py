@@ -3,6 +3,7 @@ import httpx
 import pandas as pd
 import pydeck as pdk
 from travel_planner.UI.ui_styles import apply_custom_css
+from travel_planner.UI.reels_demo import render_destination_reels
 from travel_planner.Utils.utils import generate_follow_up_questions, generate_final_plan
 
 STEP_ANCHORS = {
@@ -121,6 +122,9 @@ if "prompt_input" not in st.session_state:
 if "_last_rendered_step" not in st.session_state:
     st.session_state._last_rendered_step = st.session_state.step
 
+if "destination_city" not in st.session_state:
+    st.session_state.destination_city = ""
+
 # ----------------------------
 # HEADER
 # ----------------------------
@@ -134,6 +138,7 @@ if st.session_state.step == "input":
 
     st.markdown('<div id="step-anchor-input"></div>', unsafe_allow_html=True)
     st.markdown("### ✈️ Where do you want to go?")
+
     st.caption("Tip: press **Ctrl + Enter** in the box below to submit.")
 
     with st.form("trip_form", border=False):
@@ -155,7 +160,9 @@ if st.session_state.step == "input":
             st.session_state.step = "questions"
         else:
             with st.spinner("🧭 Crafting your itinerary..."):
-                st.session_state.results = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
+                plan = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
+            st.session_state.results = plan["itinerary"]
+            st.session_state.destination_city = plan["where"]
             st.session_state.step = "results"
 
 # ----------------------------
@@ -215,11 +222,13 @@ if st.session_state.step == "questions":
 
     if generate_clicked or auto_submit:
         with st.spinner("🧭 Crafting your itinerary..."):
-            st.session_state.results = generate_final_plan(
+            plan = generate_final_plan(
                 DEFAULT_GATEWAY_BASE_URL,
                 st.session_state.user_prompt,
                 st.session_state.answers
             )
+        st.session_state.results = plan["itinerary"]
+        st.session_state.destination_city = plan["where"]
         st.session_state.step = "results"
 
 # ----------------------------
@@ -229,6 +238,8 @@ if st.session_state.step == "results":
 
     st.markdown('<div id="step-anchor-results"></div>', unsafe_allow_html=True)
     st.markdown("### 🧭 Your Travel Itinerary")
+
+    render_destination_reels(st.session_state.destination_city)
 
     results = st.session_state.results
 

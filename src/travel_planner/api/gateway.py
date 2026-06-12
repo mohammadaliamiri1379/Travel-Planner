@@ -34,4 +34,7 @@ async def generate_itinerary(request: GenerateItineraryRequest) -> dict:
 	else:
 		result = await orchestrator.run(combined_input)
 
-	return {"itinerary": result.get("itinerary", [])}
+	return {
+		"itinerary": result.get("itinerary", []),
+		"where": result.get("trip_data", {}).get("where", ""),
+	}
