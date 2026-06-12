@@ -133,6 +133,35 @@ class TravelAgentOrchestrator:
             ).model_dump()
         
   
+    async def run_ready(self, user_input: str) -> PipelineResult:
+        """Build an itinerary directly from user_input, skipping the relevance/missing-info checks.
+
+        Used for the second pass, after the user has already answered the
+        follow-up questions: re-running the missing-information check here can
+        flip back to "needs_info" (e.g. it may reject "next week" as not a
+        specific-enough date) and leave the itinerary empty with no way for
+        the UI to recover. At this point we have enough to make a best-effort plan.
+        """
+        trip_details = await self._invoke_agent(
+            prompt=PROMPTS["trip_details_agent"]["content"],
+            model=TripDetailsResult,
+            arguments={
+                 "extracted_data": user_input,
+                 },
+            agent_name="trip_details_agent",
+        )
+        print(trip_details)
+        itinerary = await self._get_places_recommendations(trip_details)
+        return PipelineResult(
+            stage="ready",
+            user_input=user_input,
+            relevant=True,
+            has_required_information=True,
+            missing_information=[],
+            trip_data=trip_details.model_dump(),
+            itinerary=itinerary,
+        ).model_dump()
+
     async def _get_places_recommendations(self, trip_details: TripDetailsResult) -> list[dict]:
         places_url = get_agent_url("places")
         try:

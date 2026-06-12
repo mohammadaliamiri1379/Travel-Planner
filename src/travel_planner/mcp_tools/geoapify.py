@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 from itertools import zip_longest
 from pathlib import Path
 
@@ -98,16 +99,31 @@ def describe_categories(categories: list[str]) -> str:
 	return f"{label} recommended near your destination."
 
 
-def _interest_categories(interest: str) -> list[str]:
-	"""Look up Geoapify categories for a single interest, tolerating simple singular/plural variants."""
-	key = interest.strip().lower()
-	if key in INTEREST_CATEGORY_MAP:
-		return INTEREST_CATEGORY_MAP[key]
-	if key.endswith("s") and key[:-1] in INTEREST_CATEGORY_MAP:
-		return INTEREST_CATEGORY_MAP[key[:-1]]
-	if f"{key}s" in INTEREST_CATEGORY_MAP:
-		return INTEREST_CATEGORY_MAP[f"{key}s"]
+def _category_for_word(word: str) -> list[str]:
+	"""Look up Geoapify categories for a single word, tolerating simple singular/plural variants."""
+	if word in INTEREST_CATEGORY_MAP:
+		return INTEREST_CATEGORY_MAP[word]
+	if word.endswith("s") and word[:-1] in INTEREST_CATEGORY_MAP:
+		return INTEREST_CATEGORY_MAP[word[:-1]]
+	if f"{word}s" in INTEREST_CATEGORY_MAP:
+		return INTEREST_CATEGORY_MAP[f"{word}s"]
 	return []
+
+
+def _interest_categories(interest: str) -> list[str]:
+	"""Map a free-form interest phrase (e.g. "eat gelato", "visiting museums") to Geoapify categories."""
+	key = interest.strip().lower()
+	categories = _category_for_word(key)
+	if categories:
+		return categories
+
+	# Fall back to matching individual words, for phrases like "eat gelato".
+	categories = []
+	for word in re.findall(r"[a-z]+", key):
+		for category in _category_for_word(word):
+			if category not in categories:
+				categories.append(category)
+	return categories
 
 
 def categories_for_interests(interests: list[str]) -> list[str]:

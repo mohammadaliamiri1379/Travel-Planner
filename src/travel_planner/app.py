@@ -10,17 +10,40 @@ DATE_SUGGESTIONS = ["Next week", "Next month", "In 2 months", "This summer"]
 DURATION_SUGGESTIONS = ["2 days", "3 days", "5 days", "7 days"]
 INTEREST_SUGGESTIONS = ["Food & coffee", "Museums & art", "History & culture", "Nature & parks", "Nightlife", "Shopping", "Gelato & dessert"]
 
+SUGGESTIONS_PER_ROW = 4
 
-def suggestions_for_question(question: str) -> list[str]:
-    """Pick a row of popular quick-reply suggestions based on the question's topic."""
+
+def suggestions_for_question(question: str) -> tuple[list[str], bool]:
+    """Pick a row of popular quick-reply suggestions based on the question's topic.
+
+    Returns (suggestions, multi_select) - interests support picking several at once,
+    everything else is a single choice.
+    """
     q = question.lower()
-    if any(keyword in q for keyword in ["when", "date", "month", "time of year"]):
-        return DATE_SUGGESTIONS
+    # Destination questions (e.g. "what cities are you interested in visiting?")
+    # don't have a meaningful generic suggestion - skip those first.
+    if any(keyword in q for keyword in ["city", "cities", "destination", "where"]):
+        return [], False
     if any(keyword in q for keyword in ["how many days", "duration", "how long", "length of"]):
-        return DURATION_SUGGESTIONS
+        return DURATION_SUGGESTIONS, False
+    if any(keyword in q for keyword in ["when", "date", "month", "time of year"]):
+        return DATE_SUGGESTIONS, False
     if any(keyword in q for keyword in ["interest", "like to do", "prefer", "enjoy", "activities", "activity"]):
-        return INTEREST_SUGGESTIONS
-    return []
+        return INTEREST_SUGGESTIONS, True
+    return [], False
+
+
+def _apply_suggestion(answer_key: str, suggestion: str) -> None:
+    st.session_state[answer_key] = suggestion
+
+
+def _toggle_interest(answer_key: str, selected_key: str, suggestion: str, ordered_options: list[str]) -> None:
+    selected: set[str] = st.session_state.setdefault(selected_key, set())
+    if suggestion in selected:
+        selected.discard(suggestion)
+    else:
+        selected.add(suggestion)
+    st.session_state[answer_key] = ", ".join(option for option in ordered_options if option in selected)
 
 
 st.set_page_config(
@@ -75,7 +98,7 @@ if st.session_state.step == "input":
         key="prompt_input"
     )
 
-    if st.button("✨ Create my itinerary"):
+    if st.button("✨ Create my itinerary", type="primary", use_container_width=True):
         st.session_state.user_prompt = prompt
         st.markdown("Generating your personalized itinerary... This may take a moment. ⏳")
         # msg = Call_Orchestrator(DEFAULT_GATEWAY_BASE_URL, prompt)
@@ -100,18 +123,43 @@ if st.session_state.step == "questions":
     st.markdown("### 🤔 A few quick questions")
 
     for i, q in enumerate(st.session_state.questions):
-        answer_key = f"answer_{i}"
-        st.session_state.answers[q] = st.text_input(q, key=answer_key)
+        with st.container(border=True):
+            answer_key = f"answer_{i}"
+            st.session_state.answers[q] = st.text_input(q, key=answer_key)
 
-        suggestions = suggestions_for_question(q)
-        if suggestions:
-            cols = st.columns(len(suggestions))
-            for col, suggestion in zip(cols, suggestions):
-                if col.button(suggestion, key=f"suggestion_{i}_{suggestion}"):
-                    st.session_state[answer_key] = suggestion
-                    st.rerun()
+            suggestions, multi = suggestions_for_question(q)
+            if not suggestions:
+                continue
 
-    if st.button("🚀 Generate plan"):
+            selected_key = f"selected_{i}"
+            selected: set[str] = st.session_state.setdefault(selected_key, set())
+
+            for row_start in range(0, len(suggestions), SUGGESTIONS_PER_ROW):
+                row = suggestions[row_start:row_start + SUGGESTIONS_PER_ROW]
+                cols = st.columns(len(row))
+                for col, suggestion in zip(cols, row):
+                    if multi:
+                        is_selected = suggestion in selected
+                        label = f"✅ {suggestion}" if is_selected else suggestion
+                        col.button(
+                            label,
+                            key=f"suggestion_{i}_{suggestion}",
+                            on_click=_toggle_interest,
+                            args=(answer_key, selected_key, suggestion, suggestions),
+                            use_container_width=True,
+                        )
+                    else:
+                        is_selected = st.session_state.get(answer_key) == suggestion
+                        label = f"✅ {suggestion}" if is_selected else suggestion
+                        col.button(
+                            label,
+                            key=f"suggestion_{i}_{suggestion}",
+                            on_click=_apply_suggestion,
+                            args=(answer_key, suggestion),
+                            use_container_width=True,
+                        )
+
+    if st.button("🚀 Generate plan", type="primary", use_container_width=True):
         st.session_state.results = generate_final_plan(
             DEFAULT_GATEWAY_BASE_URL,
             st.session_state.user_prompt,
@@ -157,7 +205,7 @@ if st.session_state.step == "results":
             </div>
             """, unsafe_allow_html=True)
 
-    if st.button("🔁 Plan another trip"):
+    if st.button("🔁 Plan another trip", type="primary", use_container_width=True):
         st.session_state.clear()
         st.session_state.step = "input"
         st.session_state.prompt_input = ""

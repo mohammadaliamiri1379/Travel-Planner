@@ -30,6 +30,8 @@ async def generate_itinerary(request: GenerateItineraryRequest) -> dict:
 	if request.answers:
 		details = "\n".join(f"- {question}: {answer}" for question, answer in request.answers.items())
 		combined_input += f"\n\nAdditional details:\n{details}"
+		result = await orchestrator.run_ready(combined_input)
+	else:
+		result = await orchestrator.run(combined_input)
 
-	result = await orchestrator.run(combined_input)
 	return {"itinerary": result.get("itinerary", [])}
