@@ -5,6 +5,39 @@ import pydeck as pdk
 from travel_planner.UI.ui_styles import apply_custom_css
 from travel_planner.Utils.utils import generate_follow_up_questions, generate_final_plan
 
+STEP_ANCHORS = {
+    "input": "step-anchor-input",
+    "questions": "step-anchor-questions",
+    "results": "step-anchor-results",
+}
+
+
+def _scroll_to_anchor_js(anchor_id: str) -> str:
+    # scrollIntoView walks up the real scroll container (whatever it is) and
+    # scrolls in whichever direction is needed, unlike a hardcoded
+    # scrollTo(0) on a guessed container. Streamlit's main container also
+    # auto-scrolls to follow new content as it streams in, which can fight a
+    # one-shot scroll - keep re-asserting for a bit so ours wins.
+    return f"""
+<script>
+    (function () {{
+        const tryScroll = () => {{
+            const el = document.getElementById("{anchor_id}");
+            if (el) {{
+                el.scrollIntoView({{behavior: "smooth", block: "start"}});
+            }}
+        }};
+        let ticks = 0;
+        const interval = setInterval(() => {{
+            tryScroll();
+            ticks += 1;
+            if (ticks > 15) clearInterval(interval);
+        }}, 100);
+        tryScroll();
+    }})();
+</script>
+"""
+
 DEFAULT_GATEWAY_BASE_URL = "http://127.0.0.1:8000"
 
 DATE_SUGGESTIONS = ["Next week", "Next month", "In 2 months", "This summer"]
@@ -47,6 +80,12 @@ def _toggle_interest(answer_key: str, selected_key: str, suggestion: str, ordere
     st.session_state[answer_key] = ", ".join(option for option in ordered_options if option in selected)
 
 
+def _maybe_auto_submit(num_questions: int) -> None:
+    """Once every question has an answer, treat Enter on the last field as submit."""
+    if all(st.session_state.get(f"answer_{i}", "").strip() for i in range(num_questions)):
+        st.session_state._auto_submit = True
+
+
 st.set_page_config(
     page_title="AI Travel Planner",
     page_icon="🌍",
@@ -79,6 +118,9 @@ if "results" not in st.session_state:
 if "prompt_input" not in st.session_state:
     st.session_state.prompt_input = ""
 
+if "_last_rendered_step" not in st.session_state:
+    st.session_state._last_rendered_step = st.session_state.step
+
 # ----------------------------
 # HEADER
 # ----------------------------
@@ -90,25 +132,30 @@ st.markdown('<div class="subtitle">Tell me your dream trip, I’ll build your it
 # ----------------------------
 if st.session_state.step == "input":
 
+    st.markdown('<div id="step-anchor-input"></div>', unsafe_allow_html=True)
     st.markdown("### ✈️ Where do you want to go?")
+    st.caption("Tip: press **Ctrl + Enter** in the box below to submit.")
 
-    prompt = st.text_area(
-        "",
-        placeholder="e.g. I want a 3-day romantic trip to Paris with museums and food",
-        height=120,
-        key="prompt_input"
-    )
+    with st.form("trip_form", border=False):
+        prompt = st.text_area(
+            "",
+            placeholder="e.g. I want a 3-day romantic trip to Paris with museums and food",
+            height=120,
+            key="prompt_input"
+        )
+        submitted = st.form_submit_button("✨ Create my itinerary", type="primary", use_container_width=True)
 
-    if st.button("✨ Create my itinerary", type="primary", use_container_width=True):
+    if submitted:
         st.session_state.user_prompt = prompt
-        st.markdown("Generating your personalized itinerary... This may take a moment. ⏳")
 
-        st.session_state.questions = generate_follow_up_questions(DEFAULT_GATEWAY_BASE_URL, prompt)
+        with st.spinner("✨ Thinking about your trip..."):
+            st.session_state.questions = generate_follow_up_questions(DEFAULT_GATEWAY_BASE_URL, prompt)
 
         if st.session_state.questions and len(st.session_state.questions) > 0:
             st.session_state.step = "questions"
         else:
-            st.session_state.results = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
+            with st.spinner("🧭 Crafting your itinerary..."):
+                st.session_state.results = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
             st.session_state.step = "results"
 
 # ----------------------------
@@ -116,12 +163,20 @@ if st.session_state.step == "input":
 # ----------------------------
 if st.session_state.step == "questions":
 
+    st.markdown('<div id="step-anchor-questions"></div>', unsafe_allow_html=True)
     st.markdown("### 🤔 A few quick questions")
+    st.caption("Tip: press **Enter** after answering the last question to continue.")
 
+    num_questions = len(st.session_state.questions)
     for i, q in enumerate(st.session_state.questions):
         with st.container(border=True):
             answer_key = f"answer_{i}"
-            st.session_state.answers[q] = st.text_input(q, key=answer_key)
+            st.session_state.answers[q] = st.text_input(
+                q,
+                key=answer_key,
+                on_change=_maybe_auto_submit,
+                args=(num_questions,),
+            )
 
             suggestions, multi = suggestions_for_question(q)
             if not suggestions:
@@ -155,12 +210,16 @@ if st.session_state.step == "questions":
                             use_container_width=True,
                         )
 
-    if st.button("🚀 Generate plan", type="primary", use_container_width=True):
-        st.session_state.results = generate_final_plan(
-            DEFAULT_GATEWAY_BASE_URL,
-            st.session_state.user_prompt,
-            st.session_state.answers
-        )
+    generate_clicked = st.button("🚀 Generate plan", type="primary", use_container_width=True)
+    auto_submit = st.session_state.pop("_auto_submit", False)
+
+    if generate_clicked or auto_submit:
+        with st.spinner("🧭 Crafting your itinerary..."):
+            st.session_state.results = generate_final_plan(
+                DEFAULT_GATEWAY_BASE_URL,
+                st.session_state.user_prompt,
+                st.session_state.answers
+            )
         st.session_state.step = "results"
 
 # ----------------------------
@@ -168,6 +227,7 @@ if st.session_state.step == "questions":
 # ----------------------------
 if st.session_state.step == "results":
 
+    st.markdown('<div id="step-anchor-results"></div>', unsafe_allow_html=True)
     st.markdown("### 🧭 Your Travel Itinerary")
 
     results = st.session_state.results
@@ -183,17 +243,41 @@ if st.session_state.step == "results":
         place["_marker_number"] = number
 
     map_points = [
-        {"lat": place["lat"], "lon": place["lon"], "label": str(place["_marker_number"])}
+        {
+            "lat": place["lat"],
+            "lon": place["lon"],
+            "label": str(place["_marker_number"]),
+            "title": place.get("title", ""),
+            "time": place.get("time", ""),
+            "day": place.get("day", 1),
+        }
         for place in ordered_places
         if place.get("lat") is not None and place.get("lon") is not None
     ]
     if map_points:
         st.markdown("#### 🗺️ Map of your stops")
         df = pd.DataFrame(map_points)
+
+        paths_by_day: dict[int, list[list[float]]] = {}
+        for point in map_points:
+            paths_by_day.setdefault(point["day"], []).append([point["lon"], point["lat"]])
+        route_df = pd.DataFrame({"path": [coords for coords in paths_by_day.values() if len(coords) > 1]})
+
         view_state = pdk.ViewState(
             latitude=df["lat"].mean(),
             longitude=df["lon"].mean(),
             zoom=12,
+            pitch=35,
+        )
+        route_layer = pdk.Layer(
+            "PathLayer",
+            data=route_df,
+            get_path="path",
+            get_color=[56, 189, 248, 140],
+            get_width=3,
+            width_min_pixels=2,
+            rounded=True,
+            pickable=False,
         )
         pin_layer = pdk.Layer(
             "ScatterplotLayer",
@@ -201,11 +285,11 @@ if st.session_state.step == "results":
             get_position="[lon, lat]",
             get_fill_color=[56, 189, 248, 230],
             get_line_color=[15, 23, 42, 255],
-            line_width_min_pixels=1,
+            line_width_min_pixels=2,
             get_radius=1,
             radius_units="pixels",
-            radius_min_pixels=14,
-            radius_max_pixels=14,
+            radius_min_pixels=16,
+            radius_max_pixels=16,
             stroked=True,
             pickable=True,
         )
@@ -219,18 +303,29 @@ if st.session_state.step == "results":
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
         )
-        st.pydeck_chart(pdk.Deck(layers=[pin_layer, label_layer], initial_view_state=view_state))
+        st.pydeck_chart(pdk.Deck(
+            layers=[route_layer, pin_layer, label_layer],
+            initial_view_state=view_state,
+            map_provider="carto",
+            map_style=pdk.map_styles.DARK,
+            tooltip={
+                "html": "<b>Stop {label}: {title}</b><br/>🕒 {time}",
+                "style": {"backgroundColor": "#1e293b", "color": "#e2e8f0", "fontSize": "13px"},
+            },
+        ))
 
     for day in sorted(days):
         day_places = days[day]
-        date_label = day_places[0].get("date") or f"Day {day}"
-        st.markdown(f"#### 📅 Day {day} — {date_label}")
+        date_label = day_places[0].get("date")
+        header = f"#### 📅 Day {day}" + (f" — {date_label}" if date_label else "")
+        st.markdown(header)
 
         for place in day_places:
             time_label = place.get("time", "")
             time_prefix = f"🕒 {time_label} &nbsp;·&nbsp; " if time_label else ""
+            delay = min((place["_marker_number"] - 1) * 0.05, 0.6)
             st.markdown(f"""
-            <div class="card">
+            <div class="card" style="animation-delay: {delay:.2f}s;">
                 <div class="place-title"><span class="marker-badge">{place['_marker_number']}</span>{time_prefix}📍 {place['title']}</div>
                 <div class="address">📌 {place['address']}</div>
                 <div class="desc">{place['description']}</div>
@@ -241,4 +336,21 @@ if st.session_state.step == "results":
         st.session_state.clear()
         st.session_state.step = "input"
         st.session_state.prompt_input = ""
+        st.session_state._last_rendered_step = "results"
         st.rerun()
+
+# ----------------------------
+# AUTO-SCROLL ON NEW CONTENT
+# ----------------------------
+if st.session_state.step != st.session_state._last_rendered_step:
+    st.session_state._last_rendered_step = st.session_state.step
+    anchor_id = STEP_ANCHORS.get(st.session_state.step, "step-anchor-input")
+    st.html(_scroll_to_anchor_js(anchor_id), unsafe_allow_javascript=True)
+
+# ----------------------------
+# FOOTER
+# ----------------------------
+st.markdown(
+    '<div class="footer">© 2026 Christopher Khoury &amp; Mohamadali Amiri. All rights reserved.</div>',
+    unsafe_allow_html=True,
+)

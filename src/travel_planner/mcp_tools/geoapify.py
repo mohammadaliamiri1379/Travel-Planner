@@ -35,7 +35,7 @@ INTEREST_CATEGORY_MAP: dict[str, list[str]] = {
 	"park": ["leisure.park"],
 	"parks": ["leisure.park"],
 	"shopping": ["commercial.shopping_mall"],
-	"nightlife": ["catering.bar", "entertainment.nightclub"],
+	"nightlife": ["catering.bar", "adult.nightclub"],
 	"bar": ["catering.bar"],
 	"bars": ["catering.bar"],
 	"history": ["tourism.sights", "entertainment.culture"],
@@ -60,6 +60,7 @@ CATEGORY_LABELS: dict[str, str] = {
 	"catering.cafe": "Café",
 	"catering.ice_cream": "Gelato spot",
 	"catering.bar": "Bar",
+	"adult.nightclub": "Nightclub",
 	"leisure.park": "Park",
 	"natural": "Natural landmark",
 	"commercial.shopping_mall": "Shopping mall",
@@ -185,12 +186,20 @@ async def search_places_diverse(
 	Avoids the single most popular spot (e.g. one busy square) dominating the results.
 	"""
 	results = await asyncio.gather(
-		*(search_places(lat, lon, [category], limit=per_category_limit) for category in categories)
+		*(search_places(lat, lon, [category], limit=per_category_limit) for category in categories),
+		return_exceptions=True,
 	)
 
 	seen_names: set[str] = set()
 	merged: list[dict] = []
-	for batch in zip_longest(*results, fillvalue=None):
+	batches: list[list[dict]] = []
+	for category, result in zip(categories, results):
+		if isinstance(result, Exception):
+			print(f"places-agent: search for category {category!r} failed: {result}")
+			continue
+		batches.append(result)
+
+	for batch in zip_longest(*batches, fillvalue=None):
 		for feature in batch:
 			if feature is None or len(merged) >= total_limit:
 				continue

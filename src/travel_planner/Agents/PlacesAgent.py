@@ -97,10 +97,7 @@ def _schedule_itinerary(places: list[PlaceResult], num_days: int, start_date: da
 
 	for day_offset in range(num_days):
 		day_number = day_offset + 1
-		if start_date:
-			date_label = (start_date + timedelta(days=day_offset)).strftime("%a, %b %d")
-		else:
-			date_label = f"Day {day_number}"
+		date_label = (start_date + timedelta(days=day_offset)).strftime("%a, %b %d") if start_date else ""
 
 		exhausted = True
 		for slot_index, time_label in enumerate(TIME_SLOTS):
@@ -148,7 +145,7 @@ async def _enrich_descriptions(places: list[PlaceResult], city: str) -> None:
 				{"role": "user", "content": prompt},
 			],
 			response_format={"type": "json_object"},
-			temperature=0.4,
+			temperature=0.85,
 		)
 		descriptions = json.loads(response.choices[0].message.content or "{}").get("descriptions", [])
 	except Exception as e:
