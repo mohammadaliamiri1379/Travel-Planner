@@ -1,30 +1,6 @@
 import httpx
 
 
-def Call_Orchestrator(base_url: str, prompt: str, timeout_seconds: float = 25.0) -> list[str]:
-    """Calls Orchestrator to manage the request"""
-
-    # Expected response format:
-    # {
-    #   "step": "generate-questions",
-    #   "data": {
-    #     "questions": [
-    #       "What is your budget?",
-    #       "How many days will you travel?",
-    #       "Do you prefer museums or nature?"
-    #     ]
-    #   }
-    # }
-
-    return [
-        "Question 1: What is your budget?",
-        "Question 2: How many days will you travel?",
-        "Question 3: Do you prefer museums or nature?"
-    ]
-
-
-
-
 def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: float = 25.0) -> list[str]:
 
     """Calls the /generate-questions endpoint to get follow-up questions based on the user's initial prompt."""
@@ -57,25 +33,6 @@ def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: fl
 
 
 def generate_final_plan(base_url: str, prompt: str, answers: dict) -> list[dict]:
-    # Placeholder for actual itinerary generation logic
-    response = httpx.post(f"{base_url}/generate-itinerary", json={"prompt": prompt, "answers": answers})
-    if response.status_code == 200:
-        return response.json().get("itinerary", [])
-    
-    return [
-        {
-            "title": "Louvre Museum",
-            "address": "Rue de Rivoli, 75001 Paris, France",
-            "description": "The world's largest art museum and a historic monument in Paris."
-        },
-        {
-            "title": "Eiffel Tower",
-            "address": "Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France",
-            "description": "An iconic symbol of France, offering panoramic views of Paris."
-        },
-        {
-            "title": "Le Jules Verne",
-            "address": "Avenue Gustave Eiffel, 75007 Paris, France",
-            "description": "A Michelin-starred restaurant located on the Eiffel Tower."
-        }
-    ]
+    response = httpx.post(f"{base_url}/generate-itinerary", json={"prompt": prompt, "answers": answers}, timeout=60.0)
+    response.raise_for_status()
+    return response.json().get("itinerary", [])

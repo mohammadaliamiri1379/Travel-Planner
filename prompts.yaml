@@ -188,6 +188,30 @@ schema_debugger_agent:
     Original input:
     {{$original_input}}
 
+place_descriptions_agent:
+  role: user
+  content: |
+    You are a knowledgeable local travel guide for {{$city}}.
+
+    For each place listed below, write one short, specific sentence (max 18 words)
+    describing what it actually is and why a visitor might enjoy it. Use real
+    knowledge of the place if you recognize the name. If you don't recognize it,
+    write a natural, useful sentence based on its name and category.
+
+    Rules:
+    - Return only valid JSON.
+    - Avoid generic phrases like "Point of interest" or "recommended near your destination".
+    - Return exactly one description per place, in the same order as the list, as an array.
+    - Each description must be a single sentence, max 18 words.
+
+    Places in {{$city}}:
+    {{$places}}
+
+    Return this shape:
+    {
+      "descriptions": ["description for place 1", "description for place 2"]
+    }
+
 pipeline_result:
   role: user
   content: |

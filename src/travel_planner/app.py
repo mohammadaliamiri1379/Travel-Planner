@@ -1,8 +1,9 @@
 import streamlit as st
 import httpx
 import pandas as pd
+import pydeck as pdk
 from travel_planner.UI.ui_styles import apply_custom_css
-from travel_planner.Utils.utils import Call_Orchestrator, generate_follow_up_questions, generate_final_plan
+from travel_planner.Utils.utils import generate_follow_up_questions, generate_final_plan
 
 DEFAULT_GATEWAY_BASE_URL = "http://127.0.0.1:8000"
 
@@ -82,7 +83,7 @@ if "prompt_input" not in st.session_state:
 # HEADER
 # ----------------------------
 st.markdown('<div class="title">🌍 AI Travel Planner</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Tell me your dream trip — I’ll build your itinerary</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Tell me your dream trip, I’ll build your itinerary</div>', unsafe_allow_html=True)
 
 # ----------------------------
 # STEP 1: INPUT
@@ -101,14 +102,9 @@ if st.session_state.step == "input":
     if st.button("✨ Create my itinerary", type="primary", use_container_width=True):
         st.session_state.user_prompt = prompt
         st.markdown("Generating your personalized itinerary... This may take a moment. ⏳")
-        # msg = Call_Orchestrator(DEFAULT_GATEWAY_BASE_URL, prompt)
-        # if "step" not in msg:
-        #     raise KeyError("Missing 'step' in response")
-        # st.session_state.step = msg["step"]
 
         st.session_state.questions = generate_follow_up_questions(DEFAULT_GATEWAY_BASE_URL, prompt)
 
-        print( "len of questions: ", len(st.session_state.questions) )
         if st.session_state.questions and len(st.session_state.questions) > 0:
             st.session_state.step = "questions"
         else:
@@ -176,18 +172,54 @@ if st.session_state.step == "results":
 
     results = st.session_state.results
 
+    days: dict[int, list[dict]] = {}
+    for place in results:
+        days.setdefault(place.get("day", 1), []).append(place)
+
+    # Number every stop in the same order it will be displayed below, so the
+    # map pins and the itinerary cards share the same "1, 2, 3..." labels.
+    ordered_places = [place for day in sorted(days) for place in days[day]]
+    for number, place in enumerate(ordered_places, start=1):
+        place["_marker_number"] = number
+
     map_points = [
-        {"lat": place["lat"], "lon": place["lon"]}
-        for place in results
+        {"lat": place["lat"], "lon": place["lon"], "label": str(place["_marker_number"])}
+        for place in ordered_places
         if place.get("lat") is not None and place.get("lon") is not None
     ]
     if map_points:
         st.markdown("#### 🗺️ Map of your stops")
-        st.map(pd.DataFrame(map_points))
-
-    days: dict[int, list[dict]] = {}
-    for place in results:
-        days.setdefault(place.get("day", 1), []).append(place)
+        df = pd.DataFrame(map_points)
+        view_state = pdk.ViewState(
+            latitude=df["lat"].mean(),
+            longitude=df["lon"].mean(),
+            zoom=12,
+        )
+        pin_layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=df,
+            get_position="[lon, lat]",
+            get_fill_color=[56, 189, 248, 230],
+            get_line_color=[15, 23, 42, 255],
+            line_width_min_pixels=1,
+            get_radius=1,
+            radius_units="pixels",
+            radius_min_pixels=14,
+            radius_max_pixels=14,
+            stroked=True,
+            pickable=True,
+        )
+        label_layer = pdk.Layer(
+            "TextLayer",
+            data=df,
+            get_position="[lon, lat]",
+            get_text="label",
+            get_size=14,
+            get_color=[255, 255, 255, 255],
+            get_text_anchor="'middle'",
+            get_alignment_baseline="'center'",
+        )
+        st.pydeck_chart(pdk.Deck(layers=[pin_layer, label_layer], initial_view_state=view_state))
 
     for day in sorted(days):
         day_places = days[day]
@@ -199,7 +231,7 @@ if st.session_state.step == "results":
             time_prefix = f"🕒 {time_label} &nbsp;·&nbsp; " if time_label else ""
             st.markdown(f"""
             <div class="card">
-                <div class="place-title">{time_prefix}📍 {place['title']}</div>
+                <div class="place-title"><span class="marker-badge">{place['_marker_number']}</span>{time_prefix}📍 {place['title']}</div>
                 <div class="address">📌 {place['address']}</div>
                 <div class="desc">{place['description']}</div>
             </div>

@@ -54,6 +54,22 @@ def apply_custom_css():
             color: #38bdf8;
         }
 
+        .marker-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 24px;
+            height: 24px;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #38bdf8, #6366f1);
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
         .address {
             font-size: 13px;
             color: #cbd5e1;

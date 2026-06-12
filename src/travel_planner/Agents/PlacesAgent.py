@@ -1,8 +1,14 @@
+import json
+import os
 import re
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
+import yaml
 from dateutil import parser as date_parser
+from dotenv import load_dotenv
 from fastapi import FastAPI
+from groq import AsyncGroq
 
 from travel_planner.mcp_tools.geoapify import (
 	categories_for_interests,
@@ -19,6 +25,15 @@ app = FastAPI(title="places-agent")
 TIME_SLOTS = ["09:00 AM", "12:30 PM", "03:00 PM", "06:30 PM"]
 MEAL_SLOT_INDEXES = {1, 3}
 MAX_SCHEDULED_DAYS = 14
+
+BASE_DIR = Path(__file__).resolve().parents[3]
+load_dotenv(BASE_DIR / ".env")
+with open(BASE_DIR / "prompts.yaml", "r", encoding="utf-8") as f:
+	PROMPTS = yaml.safe_load(f)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+DESCRIPTION_MODEL = "llama-3.3-70b-versatile"
+_groq_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 
 @app.get("/.well-known/agent-card.json")
@@ -106,6 +121,45 @@ def _schedule_itinerary(places: list[PlaceResult], num_days: int, start_date: da
 	return scheduled
 
 
+async def _enrich_descriptions(places: list[PlaceResult], city: str) -> None:
+	"""Ask the LLM for a short, specific description of each place, in place.
+
+	Falls back silently to the existing category-based description (set in
+	_feature_to_place) if the LLM call or response parsing fails.
+	"""
+	if not _groq_client or not places:
+		return
+
+	places_text = "\n".join(
+		f"{i + 1}. {place.title} (category: {place.category or 'unknown'})"
+		for i, place in enumerate(places)
+	)
+	prompt = (
+		PROMPTS["place_descriptions_agent"]["content"]
+		.replace("{{$city}}", city)
+		.replace("{{$places}}", places_text)
+	)
+
+	try:
+		response = await _groq_client.chat.completions.create(
+			model=DESCRIPTION_MODEL,
+			messages=[
+				{"role": "system", "content": PROMPTS["system_rules"]["content"]},
+				{"role": "user", "content": prompt},
+			],
+			response_format={"type": "json_object"},
+			temperature=0.4,
+		)
+		descriptions = json.loads(response.choices[0].message.content or "{}").get("descriptions", [])
+	except Exception as e:
+		print(f"places-agent: description enrichment failed: {e}")
+		return
+
+	for place, description in zip(places, descriptions):
+		if isinstance(description, str) and description.strip():
+			place.description = description.strip()
+
+
 @app.post("/recommend")
 async def recommend(request: PlacesRequest) -> PlacesResponse:
 	try:
@@ -126,4 +180,5 @@ async def recommend(request: PlacesRequest) -> PlacesResponse:
 	places = [_feature_to_place(feature) for feature in features]
 	start_date = _parse_start_date(request.when)
 	itinerary = _schedule_itinerary(places, num_days, start_date)
+	await _enrich_descriptions(itinerary, request.where)
 	return PlacesResponse(itinerary=itinerary)
