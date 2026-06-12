@@ -5,3 +5,5 @@ pydantic
 fastapi
 PyYAML
 semantic_kernel
+pandas
+python-dateutil

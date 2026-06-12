@@ -141,6 +141,7 @@ class TravelAgentOrchestrator:
                     f"{places_url}/recommend",
                     json={
                         "where": trip_details.where,
+                        "when": trip_details.when,
                         "interests": trip_details.interests,
                         "duration": trip_details.duration,
                     },

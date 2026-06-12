@@ -56,9 +56,9 @@ def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: fl
 
 
 
-def generate_final_plan(prompt: str, answers: dict) -> list[dict]:
+def generate_final_plan(base_url: str, prompt: str, answers: dict) -> list[dict]:
     # Placeholder for actual itinerary generation logic
-    response = httpx.post(f"{DEFAULT_GATEWAY_BASE_URL}/generate-itinerary", json={"prompt": prompt, "answers": answers})
+    response = httpx.post(f"{base_url}/generate-itinerary", json={"prompt": prompt, "answers": answers})
     if response.status_code == 200:
         return response.json().get("itinerary", [])
     

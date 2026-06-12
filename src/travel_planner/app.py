@@ -1,9 +1,26 @@
 import streamlit as st
 import httpx
+import pandas as pd
 from travel_planner.UI.ui_styles import apply_custom_css
 from travel_planner.Utils.utils import Call_Orchestrator, generate_follow_up_questions, generate_final_plan
 
 DEFAULT_GATEWAY_BASE_URL = "http://127.0.0.1:8000"
+
+DATE_SUGGESTIONS = ["Next week", "Next month", "In 2 months", "This summer"]
+DURATION_SUGGESTIONS = ["2 days", "3 days", "5 days", "7 days"]
+INTEREST_SUGGESTIONS = ["Food & coffee", "Museums & art", "History & culture", "Nature & parks", "Nightlife", "Shopping", "Gelato & dessert"]
+
+
+def suggestions_for_question(question: str) -> list[str]:
+    """Pick a row of popular quick-reply suggestions based on the question's topic."""
+    q = question.lower()
+    if any(keyword in q for keyword in ["when", "date", "month", "time of year"]):
+        return DATE_SUGGESTIONS
+    if any(keyword in q for keyword in ["how many days", "duration", "how long", "length of"]):
+        return DURATION_SUGGESTIONS
+    if any(keyword in q for keyword in ["interest", "like to do", "prefer", "enjoy", "activities", "activity"]):
+        return INTEREST_SUGGESTIONS
+    return []
 
 
 st.set_page_config(
@@ -72,7 +89,7 @@ if st.session_state.step == "input":
         if st.session_state.questions and len(st.session_state.questions) > 0:
             st.session_state.step = "questions"
         else:
-            st.session_state.results = generate_final_plan(prompt, {})
+            st.session_state.results = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
             st.session_state.step = "results"
 
 # ----------------------------
@@ -83,10 +100,20 @@ if st.session_state.step == "questions":
     st.markdown("### 🤔 A few quick questions")
 
     for i, q in enumerate(st.session_state.questions):
-        st.session_state.answers[q] = st.text_input(q, key=i)
+        answer_key = f"answer_{i}"
+        st.session_state.answers[q] = st.text_input(q, key=answer_key)
+
+        suggestions = suggestions_for_question(q)
+        if suggestions:
+            cols = st.columns(len(suggestions))
+            for col, suggestion in zip(cols, suggestions):
+                if col.button(suggestion, key=f"suggestion_{i}_{suggestion}"):
+                    st.session_state[answer_key] = suggestion
+                    st.rerun()
 
     if st.button("🚀 Generate plan"):
         st.session_state.results = generate_final_plan(
+            DEFAULT_GATEWAY_BASE_URL,
             st.session_state.user_prompt,
             st.session_state.answers
         )
@@ -99,15 +126,36 @@ if st.session_state.step == "results":
 
     st.markdown("### 🧭 Your Travel Itinerary")
 
-    for place in st.session_state.results:
+    results = st.session_state.results
 
-        st.markdown(f"""
-        <div class="card">
-            <div class="place-title">📍 {place['title']}</div>
-            <div class="address">📌 {place['address']}</div>
-            <div class="desc">{place['description']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    map_points = [
+        {"lat": place["lat"], "lon": place["lon"]}
+        for place in results
+        if place.get("lat") is not None and place.get("lon") is not None
+    ]
+    if map_points:
+        st.markdown("#### 🗺️ Map of your stops")
+        st.map(pd.DataFrame(map_points))
+
+    days: dict[int, list[dict]] = {}
+    for place in results:
+        days.setdefault(place.get("day", 1), []).append(place)
+
+    for day in sorted(days):
+        day_places = days[day]
+        date_label = day_places[0].get("date") or f"Day {day}"
+        st.markdown(f"#### 📅 Day {day} — {date_label}")
+
+        for place in day_places:
+            time_label = place.get("time", "")
+            time_prefix = f"🕒 {time_label} &nbsp;·&nbsp; " if time_label else ""
+            st.markdown(f"""
+            <div class="card">
+                <div class="place-title">{time_prefix}📍 {place['title']}</div>
+                <div class="address">📌 {place['address']}</div>
+                <div class="desc">{place['description']}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     if st.button("🔁 Plan another trip"):
         st.session_state.clear()
