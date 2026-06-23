@@ -70,6 +70,14 @@ async def forecast(request: WeatherRequest) -> WeatherResponse:
 
 	try:
 		lat, lon = await geocode_city(request.where)
+	except ValueError as e:
+		print(f"weather-agent: geocode failed: {e}")
+		return WeatherResponse(forecast=[], error="location_not_found")
+	except Exception as e:
+		print(f"weather-agent: forecast failed: {e}")
+		return WeatherResponse(forecast=[])
+
+	try:
 		daily = await get_daily_forecast(lat, lon, start_date.isoformat(), end_date.isoformat())
 	except Exception as e:
 		print(f"weather-agent: forecast failed: {e}")

@@ -1,16 +1,14 @@
 import httpx
 
 
-def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: float = 25.0) -> list[str]:
+def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: float = 25.0) -> dict:
 
     """Calls the /generate-questions endpoint to get follow-up questions based on the user's initial prompt."""
     # Expected response format:
     # {
-    #   "questions": [
-    #     "What is your budget?",
-    #     "How many days will you travel?",
-    #     "Do you prefer museums or nature?"
-    #   ]
+    #   "questions": ["What is your budget?", ...],
+    #   "irrelevant": false,
+    #   "humorous_reply": ""
     # }
 
 
@@ -28,7 +26,11 @@ def generate_follow_up_questions(base_url: str, prompt: str, timeout_seconds: fl
     if not isinstance(questions, list):
         raise TypeError(f"Expected 'questions' to be a list, got {type(questions).__name__}")
 
-    return [str(q) for q in questions]
+    return {
+        "questions": [str(q) for q in questions],
+        "irrelevant": bool(payload.get("irrelevant", False)),
+        "humorous_reply": str(payload.get("humorous_reply", "")),
+    }
 
 
 
@@ -40,4 +42,5 @@ def generate_final_plan(base_url: str, prompt: str, answers: dict) -> dict:
         "itinerary": payload.get("itinerary", []),
         "where": payload.get("where", ""),
         "weather": payload.get("weather", []),
+        "error": payload.get("error", ""),
     }

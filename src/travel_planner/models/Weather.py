@@ -18,3 +18,4 @@ class WeatherRequest(BaseModel):
 
 class WeatherResponse(BaseModel):
 	forecast: list[DayWeather] = Field(default_factory=list)
+	error: str = ""

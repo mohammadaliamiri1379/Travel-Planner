@@ -19,9 +19,11 @@ class GenerateItineraryRequest(BaseModel):
 @app.post("/generate-questions")
 async def generate_questions(request: GenerateQuestionsRequest) -> dict:
 	result = await orchestrator.run(request.prompt)
+	if result["stage"] == "irrelevant":
+		return {"questions": [], "irrelevant": True, "humorous_reply": result.get("humorous_reply", "")}
 	if result["stage"] == "needs_info":
-		return {"questions": result["questions"]}
-	return {"questions": []}
+		return {"questions": result["questions"], "irrelevant": False, "humorous_reply": ""}
+	return {"questions": [], "irrelevant": False, "humorous_reply": ""}
 
 
 @app.post("/generate-itinerary")
@@ -38,4 +40,5 @@ async def generate_itinerary(request: GenerateItineraryRequest) -> dict:
 		"itinerary": result.get("itinerary", []),
 		"where": result.get("trip_data", {}).get("where", ""),
 		"weather": result.get("weather", []),
+		"error": result.get("error", ""),
 	}

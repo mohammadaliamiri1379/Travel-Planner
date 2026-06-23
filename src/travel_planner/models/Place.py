@@ -23,3 +23,4 @@ class PlacesRequest(BaseModel):
 
 class PlacesResponse(BaseModel):
 	itinerary: list[PlaceResult] = Field(default_factory=list)
+	error: str = ""

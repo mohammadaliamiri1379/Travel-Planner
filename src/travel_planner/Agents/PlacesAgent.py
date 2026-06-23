@@ -186,6 +186,14 @@ async def _enrich_descriptions(places: list[PlaceResult], city: str) -> None:
 async def recommend(request: PlacesRequest) -> PlacesResponse:
 	try:
 		lat, lon = await geocode_city(request.where)
+	except ValueError as e:
+		print(f"places-agent: geocode failed: {e}")
+		return PlacesResponse(itinerary=[], error="location_not_found")
+	except Exception as e:
+		print(f"places-agent: recommend failed: {e}")
+		return PlacesResponse(itinerary=[])
+
+	try:
 		categories = categories_for_interests(request.interests)
 
 		num_days = _parse_duration_days(request.duration)

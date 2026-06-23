@@ -103,6 +103,23 @@ def _maybe_auto_submit(num_questions: int) -> None:
         st.session_state._auto_submit = True
 
 
+def _apply_plan_result(plan: dict) -> None:
+    """Store a generated plan in session state, or send the user back to fix an unrecognized destination."""
+    if plan["error"] == "location_not_found":
+        st.session_state.location_error = (
+            "I couldn't find that destination - double-check the spelling and try again."
+        )
+        st.session_state.step = "input"
+        st.session_state.prompt_input = st.session_state.user_prompt
+        st.rerun()
+
+    st.session_state.location_error = ""
+    st.session_state.results = plan["itinerary"]
+    st.session_state.destination_city = plan["where"]
+    st.session_state.weather = plan["weather"]
+    st.session_state.step = "results"
+
+
 st.set_page_config(
     page_title="AI Travel Planner",
     page_icon="🌍",
@@ -144,6 +161,12 @@ if "destination_city" not in st.session_state:
 if "weather" not in st.session_state:
     st.session_state.weather = []
 
+if "irrelevant_reply" not in st.session_state:
+    st.session_state.irrelevant_reply = ""
+
+if "location_error" not in st.session_state:
+    st.session_state.location_error = ""
+
 # ----------------------------
 # HEADER
 # ----------------------------
@@ -160,6 +183,12 @@ if st.session_state.step == "input":
 
     st.caption("Tip: press **Ctrl + Enter** in the box below to submit.")
 
+    if st.session_state.irrelevant_reply:
+        st.info(f"🤔 {st.session_state.irrelevant_reply}")
+
+    if st.session_state.location_error:
+        st.error(f"📍 {st.session_state.location_error}")
+
     with st.form("trip_form", border=False):
         prompt = st.text_area(
             "",
@@ -173,17 +202,21 @@ if st.session_state.step == "input":
         st.session_state.user_prompt = prompt
 
         with st.spinner("✨ Thinking about your trip..."):
-            st.session_state.questions = generate_follow_up_questions(DEFAULT_GATEWAY_BASE_URL, prompt)
+            questions_result = generate_follow_up_questions(DEFAULT_GATEWAY_BASE_URL, prompt)
+
+        if questions_result["irrelevant"]:
+            st.session_state.irrelevant_reply = questions_result["humorous_reply"]
+            st.rerun()
+
+        st.session_state.irrelevant_reply = ""
+        st.session_state.questions = questions_result["questions"]
 
         if st.session_state.questions and len(st.session_state.questions) > 0:
             st.session_state.step = "questions"
         else:
             with st.spinner("🧭 Crafting your itinerary..."):
                 plan = generate_final_plan(DEFAULT_GATEWAY_BASE_URL, prompt, {})
-            st.session_state.results = plan["itinerary"]
-            st.session_state.destination_city = plan["where"]
-            st.session_state.weather = plan["weather"]
-            st.session_state.step = "results"
+            _apply_plan_result(plan)
 
 # ----------------------------
 # STEP 2: QUESTIONS
@@ -247,10 +280,7 @@ if st.session_state.step == "questions":
                 st.session_state.user_prompt,
                 st.session_state.answers
             )
-        st.session_state.results = plan["itinerary"]
-        st.session_state.destination_city = plan["where"]
-        st.session_state.weather = plan["weather"]
-        st.session_state.step = "results"
+        _apply_plan_result(plan)
 
 # ----------------------------
 # STEP 3: RESULTS

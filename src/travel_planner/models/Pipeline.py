@@ -13,3 +13,4 @@ class PipelineResult(BaseModel):
 	itinerary: list[dict[str, Any]] = Field(default_factory=list)
 	weather: list[dict[str, Any]] = Field(default_factory=list)
 	next_step_hint: str = ""
+	error: str = ""
