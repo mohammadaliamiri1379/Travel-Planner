@@ -40,9 +40,6 @@ def _parse_start_date(when: str) -> date | None:
 	except (ValueError, OverflowError):
 		return None
 
-	# dateutil's fuzzy parser sometimes reads a day-of-month (e.g. the "16" in
-	# "June 15-16") as a 2-digit year, landing the date in the past. Snap it
-	# forward to this year (or next) - trip dates are never meant to be in the past.
 	today = date.today()
 	if parsed < today:
 		try:

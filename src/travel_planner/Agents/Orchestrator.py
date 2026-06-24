@@ -39,12 +39,6 @@ SERVICE_ID = "groq"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
-# relevance = RelevanceResult(relevant=True, reason="The user's input is relevant to travel planning.", humorous_reply="Why did the traveler bring a ladder? Because they wanted to reach new heights in their itinerary!").dict()
-# print (relevance)
-# missing_information = MissingInformationResult(does_have_information=True, missing_information=[]).dict()
-# print(missing_information["missing_information"])
-# print(type(missing_information["missing_information"]))
-
 class TravelAgentOrchestrator:
     def __init__(self):
 
