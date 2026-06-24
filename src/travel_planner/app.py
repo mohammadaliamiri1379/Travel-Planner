@@ -388,11 +388,22 @@ if st.session_state.step == "results":
 
     for day in sorted(days):
         day_places = days[day]
+        day_weather = weather_by_day.get(day)
+
         date_iso = day_places[0].get("date_iso")
-        date_label = datetime.fromisoformat(date_iso).strftime("%A, %B %d") if date_iso else day_places[0].get("date")
+        if date_iso:
+            _dt = datetime.fromisoformat(date_iso)
+            date_label = f"{_dt.strftime('%B')} {_dt.day}"
+        elif day_weather and day_weather.get("date"):
+            try:
+                _dt = datetime.strptime(day_weather["date"], "%a, %b %d")
+                date_label = f"{_dt.strftime('%B')} {_dt.day}"
+            except ValueError:
+                date_label = day_places[0].get("date", "")
+        else:
+            date_label = day_places[0].get("date", "")
         header = f"#### 📅 Day {day}" + (f" - {date_label}" if date_label else "")
 
-        day_weather = weather_by_day.get(day)
         if day_weather:
             condition = day_weather.get("condition", "")
             high = day_weather.get("temp_high_c")
