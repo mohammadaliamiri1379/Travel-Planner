@@ -3,6 +3,8 @@ python-dotenv
 streamlit
 pydantic
 fastapi
+uvicorn
+httpx
 PyYAML
 semantic_kernel
 pandas
